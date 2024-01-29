@@ -1,0 +1,59 @@
+name: Kernel Build and Telegram Notification
+
+on:
+  push:
+    branches:
+      - main
+  # schedule:
+  #   - cron: "0 0 * * *"
+
+jobs:
+  build_and_notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Notify Build Triggered
+        uses: appleboy/telegram-action@v2
+        with:
+          to: ${{ secrets.chat_id }}
+          token: ${{ secrets.bot_token }}
+          message: "Kernel build has been triggered."
+
+      - name: Checkout Repo
+        uses: actions/checkout@v2
+
+      - name: Set up Java
+        uses: actions/setup-java@v2
+        with:
+          distribution: "adopt"
+          java-version: "11"
+
+      - name: Install repo tool
+        run: |
+          mkdir -p ~/.bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/.bin/repo
+          chmod a+x ~/.bin/repo
+          export PATH=~/.bin:$PATH
+
+      - name: Initialize Repo and Sync
+        run: |
+          repo init -u https://github.com/Statix-Gram/android_kernel_manifest.git -b android-msm-4.14
+          repo sync --force-sync --no-clone-bundle --current-branch --no-tags -j$(nproc --all)
+
+      - name: Build Kernel
+        env:
+          BUILD_KERNEL: 1
+          BUILD_CONFIG: build.config
+        run: build/build.sh
+
+      - name: Send Prebuilt Images to Telegram
+        if: success()
+        uses: appleboy/telegram-action@v2
+        with:
+          to: ${{ secrets.chat_id }}
+          token: ${{ secrets.bot_token }}
+          message: "Kernel prebuilt images build completed."
+          document: |
+            out/dist/dtbo.img,
+            out/dist/cust-atoll-ab.dtb,
+            out/dist/Image.gz
