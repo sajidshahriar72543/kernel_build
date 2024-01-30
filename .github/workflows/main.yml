@@ -1,24 +1,15 @@
-name: Kernel Build and Telegram Notification
+name: Kernel Build, Telegram Notification, and Binary Upload
 
 on:
   push:
     branches:
       - main
-  # schedule:
-  #   - cron: "0 0 * * *"
 
 jobs:
-  build_and_notify:
+  build_notify_upload_and_clean:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Notify Build Triggered
-        uses: appleboy/telegram-action@v2
-        with:
-          to: ${{ secrets.chat_id }}
-          token: ${{ secrets.bot_token }}
-          message: "Kernel build has been triggered."
-
       - name: Checkout Repo
         uses: actions/checkout@v2
 
@@ -29,16 +20,28 @@ jobs:
           java-version: "11"
 
       - name: Install repo tool
-        run: |
-          mkdir -p ~/.bin
-          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/.bin/repo
-          chmod a+x ~/.bin/repo
-          export PATH=~/.bin:$PATH
+        run: bash <(curl -sL https://raw.githubusercontent.com/akhilnarang/scripts/master/setup/android_build_env.sh)
 
       - name: Initialize Repo and Sync
         run: |
           repo init -u https://github.com/Statix-Gram/android_kernel_manifest.git -b android-msm-4.14
           repo sync --force-sync --no-clone-bundle --current-branch --no-tags -j$(nproc --all)
+
+      - name: Notify Build Triggered and Get Commit Info
+        id: notify_build
+        run: |
+          cd kernel/msm-4.14
+          commit_sha=$(git rev-parse HEAD)
+          commit_message=$(git log --format=%B -n 1)
+          echo "::set-output name=commit_sha::$commit_sha"
+          echo "::set-output name=commit_message::$commit_message"
+
+      - name: Send Build Triggered Message with Commit Info
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.chat_id }}
+          token: ${{ secrets.bot_token }}
+          message: "Kernel build has been triggered. Commit: ${{ steps.notify_build.outputs.commit_sha }}. Message: ${{ steps.notify_build.outputs.commit_message }}"
 
       - name: Build Kernel
         env:
@@ -48,12 +51,33 @@ jobs:
 
       - name: Send Prebuilt Images to Telegram
         if: success()
-        uses: appleboy/telegram-action@v2
+        uses: appleboy/telegram-action@master
         with:
           to: ${{ secrets.chat_id }}
           token: ${{ secrets.bot_token }}
           message: "Kernel prebuilt images build completed."
           document: |
-            out/dist/dtbo.img,
-            out/dist/cust-atoll-ab.dtb,
-            out/dist/Image.gz
+            out/main/dist/dtbo.img,
+            out/main/dist/cust-atoll-ab.dtb,
+            out/main/dist/Image.gz
+
+      - name: Upload Kernel Binaries
+        if: success()
+        run: |
+          git config --global user.email "sazidshahriar39@gmail.com"
+          git config --global user.name "sajidshahriar72543"
+          cd out/main/dist
+          git clone -b fourteen https://github.com/sajidshahriar72543/kernel_xiaomi_miatoll-kernel krnl
+          cp dtbo.img cust-atoll-ab.dtb Image.gz krnl/
+          cd krnl
+          git add .
+          git commit -m "miatoll-kernel: update binaries"
+          curl -Lo .git/hooks/commit-msg https://gerrit.pixelexperience.org/tools/hooks/commit-msg && chmod u+x .git/hooks/commit-msg
+          git commit --amend -s --no-edit
+          git push https://${{ secrets.git_id }}:${{ secrets.git_token }}@github.com/sajidshahriar72543/kernel_xiaomi_miatoll-kernel fourteen
+          cd ../../../..
+          
+      - name: Clean Up
+        if: success()
+        run: |
+          rm -rf out/
