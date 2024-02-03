@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  build_notify_upload_and_clean:
+  Build_Notify_Upload_and_Clean:
     runs-on: ubuntu-latest
 
     steps:
@@ -19,7 +19,7 @@ jobs:
           distribution: "adopt"
           java-version: "11"
 
-      - name: Install repo tool
+      - name: Spinning up the environment
         run: bash <(curl -sL https://raw.githubusercontent.com/akhilnarang/scripts/master/setup/android_build_env.sh)
 
       - name: Initialize Repo and Sync
@@ -41,7 +41,7 @@ jobs:
         with:
           to: ${{ secrets.chat_id }}
           token: ${{ secrets.bot_token }}
-          message: "Kernel build has been triggered. Commit: ${{ steps.notify_build.outputs.commit_sha }}. Message: ${{ steps.notify_build.outputs.commit_message }}"
+          message: "Kernel build has been triggered.\n\nCommit: ${{ steps.notify_build.outputs.commit_sha }}.\n\nMessage: ${{ steps.notify_build.outputs.commit_message }}"
 
       - name: Build Kernel
         env:
