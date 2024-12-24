@@ -1,9 +1,6 @@
 name: Kernel Build, Telegram Notification, and Binary Upload
 
-on:
-  push:
-    branches:
-      - main
+on: workflow_dispatch
 
 jobs:
   Build_Notify_Upload_and_Clean:
@@ -24,7 +21,7 @@ jobs:
 
       - name: Initialize Repo and Sync
         run: |
-          repo init -u https://github.com/Statix-Gram/android_kernel_manifest.git -b android-msm-4.14
+          repo init -u https://github.com/sajidshahriar72543/android_kernel_manifest -b android-msm-4.14
           repo sync --force-sync --no-clone-bundle --current-branch --no-tags -j$(nproc --all)
 
       - name: Notify Build Triggered and Get Commit Info
